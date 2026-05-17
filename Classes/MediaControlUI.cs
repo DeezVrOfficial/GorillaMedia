@@ -1,12 +1,11 @@
 ﻿using Deez.GorillaMedia.Classes.Admin;
-using Deez.GorillaMedia.Classes;
 using Photon.Pun;
 using System.Linq;
 using TMPro;
 using UnityEngine;
-using Image = UnityEngine.UI.Image;
+using UnityEngine.UI;
 
-namespace GorillaMedia
+namespace Deez.GorillaMedia.Classes
 {
     public class MediaControlUI : MonoBehaviour
     {

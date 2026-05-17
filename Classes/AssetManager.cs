@@ -11,7 +11,7 @@ namespace Deez.GorillaMedia.Classes
         private static void LoadAssetBundle()
         {
             Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("GorillaMedia.Resources.media");
-            if (stream == null)
+            if (stream != null)
                 assetBundle = AssetBundle.LoadFromStream(stream);
             else
                 Debug.LogError("Failed to load assetbundle");

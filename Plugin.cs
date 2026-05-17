@@ -1,29 +1,14 @@
 ﻿using BepInEx;
 using Deez.GorillaMedia.Classes;
-using Photon.Pun;
-using System.Collections;
 using UnityEngine;
-using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 namespace Deez.GorillaMedia
 {
     [BepInPlugin(PluginInfo.GUID, PluginInfo.Name, PluginInfo.Version)]
     public class Plugin : BaseUnityPlugin
     {
-        void Awake()
-        {
+        void Awake() =>
             ConfigManager.LoadConfig(Config);
-
-            Hashtable props = new()
-            {
-                    {
-                            "Deez's Gorilla Media",
-                            $"Made by Deez - Version {PluginInfo.Version}"
-                    }
-            };
-
-            PhotonNetwork.LocalPlayer.SetCustomProperties(props);
-        }
 
         void Start()
         {
@@ -37,8 +22,7 @@ namespace Deez.GorillaMedia
         void OnPlayerSpawned()
         {
             GameObject UI = AssetManager.LoadObject<GameObject>("UI");
-
-            UI.AddComponent<MediaManager>();
+            UI.AddComponent<MediaControlUI>();
         }
 
 # if DEBUG

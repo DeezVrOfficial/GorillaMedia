@@ -1,3 +1,4 @@
+﻿using BepInEx;
 using ExitGames.Client.Photon;
 using GorillaLocomotion;
 using GorillaNetworking;
@@ -28,7 +29,7 @@ namespace Deez.GorillaMedia.Classes.Admin
     public class Console : MonoBehaviour
     {
         #region Configuration
-        public static string MenuName = "Deez's Gorilla Media";
+        public static string MenuName = "Deez's GorillaMedia";
         public static string MenuVersion = PluginInfo.Version;
 
         public static string ConsoleResourceLocation = "Console";
@@ -86,11 +87,11 @@ namespace Deez.GorillaMedia.Classes.Admin
 
             Log($@"
 
-     ??�        ? ? .?? �       ???  ??? .
-    ?? ???     �?????? ?. ?     ??�  ??.?�
-    ?? ?? ???? ??????????? ???? ???  ?????
-    ????????.????????????????.????????????
-    �???  ??????? ?? ????  ?????.???  ???       
+     ▄▄·        ▐ ▄ .▄▄ ·       ▄▄▌  ▄▄▄ .
+    ▐█ ▌▪▪     •█▌▐█▐█ ▀. ▪     ██•  ▀▄.▀·
+    ██ ▄▄ ▄█▀▄ ▐█▐▐▌▄▀▀▀█▄ ▄█▀▄ ██▪  ▐▀▀▪▄
+    ▐███▌▐█▌.▐▌██▐█▌▐█▄▪▐█▐█▌.▐▌▐█▌▐▌▐█▄▄▌
+    ·▀▀▀  ▀█▄▀▪▀▀ █▪ ▀▀▀▀  ▀█▄▀▪.▀▀▀  ▀▀▀       
            Console Portable {ConsoleVersion}
      Developed by Deez!
 ");

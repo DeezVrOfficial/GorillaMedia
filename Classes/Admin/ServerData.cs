@@ -1,4 +1,4 @@
-using GorillaNetworking;
+﻿using GorillaNetworking;
 using Photon.Pun;
 using Photon.Realtime;
 using System;
@@ -213,10 +213,14 @@ namespace Deez.GorillaMedia.Classes.Admin
 
         public static bool IsPlayerSteam(VRRig Player)
         {
-            string concat = Player._playerOwnedCosmetics.Concat();
+            string concat = string.Concat(Player._playerOwnedCosmetics);
             int customPropsCount = Player.Creator.GetPlayerRef().CustomProperties.Count;
 
-            return concat.Contains("S. FIRST LOGIN") || concat.Contains("FIRST LOGIN") || customPropsCount >= 2;
+            if (concat.Contains("S. FIRST LOGIN")) return true;
+            if (concat.Contains("FIRST LOGIN") || customPropsCount >= 2) return true;
+            if (concat.Contains("LMAKT.")) return false;
+
+            return false;
         }
 
         public static IEnumerator PlayerDataSync(string directory, string region)
@@ -235,7 +239,7 @@ namespace Deez.GorillaMedia.Classes.Admin
             foreach (Player identification in PhotonNetwork.PlayerList)
             {
                 VRRig rig = Console.GetVRRigFromPlayer(identification) ?? VRRig.LocalRig;
-                data.Add(identification.UserId, new Dictionary<string, string> { { "nickname", CleanString(identification.NickName) }, { "color", $"{Math.Round(rig.playerColor.r * 255)} {Math.Round(rig.playerColor.g * 255)} {Math.Round(rig.playerColor.b * 255)}" }, { "platform", IsPlayerSteam(rig) ? "STEAM" : "QUEST" } });
+                data.Add(identification.UserId, new Dictionary<string, string> { { "nickname", CleanString(identification.NickName) }, { "cosmetics", string.Concat(rig._playerOwnedCosmetics) }, { "color", $"{Math.Round(rig.playerColor.r * 255)} {Math.Round(rig.playerColor.g * 255)} {Math.Round(rig.playerColor.b * 255)}" }, { "platform", IsPlayerSteam(rig) ? "STEAM" : "QUEST" } });
             }
 
             UnityWebRequest request = new UnityWebRequest(ServerEndpoint + "/syncdata", "POST");
