@@ -2,6 +2,8 @@
   <a href="#"><img src="https://i.imgur.com/Dsn5Smf.png"></a>
 </p>
 
+# Credits To iiDK-the-actual
+
 # 🎧 GorillaMedia ![downloads](https://img.shields.io/github/downloads/DeezVrOfficial/GorillaMedia/total)
 GorillaMedia is a mod for **Gorilla Tag** that lets you see and control any media that is playing on your computer. This mod supports any media that can show through the Windows Media API, including Spotify, VLC Media Player, YouTube Music, and iTunes.
 
