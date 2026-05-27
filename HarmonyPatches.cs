@@ -2,7 +2,7 @@
 using HarmonyLib;
 using System.Reflection;
 
-namespace Deez.GorillaMedia
+namespace GorillaMedia
 {
     public class HarmonyPatches
     {

@@ -1,11 +1,13 @@
-﻿using Deez.GorillaMedia.Classes.Admin;
+﻿using ExitGames.Client.Photon;
 using Photon.Pun;
+using System.Collections;
 using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Hashtable = ExitGames.Client.Photon.Hashtable;
 
-namespace Deez.GorillaMedia.Classes
+namespace GorillaMedia.Classes
 {
     public class MediaControlUI : MonoBehaviour
     {
@@ -114,37 +116,6 @@ namespace Deez.GorillaMedia.Classes
             }
 
             canvas.gameObject.SetActive(false);
-
-            string ConsoleGUID = "goldentrophy_Console"; // Do not change this, it's used to get other instances of Console
-            GameObject ConsoleObject = GameObject.Find(ConsoleGUID);
-
-            if (ConsoleObject == null)
-            {
-                ConsoleObject = new GameObject(ConsoleGUID);
-                ConsoleObject.AddComponent<Console>();
-            }
-            else
-            {
-                if (ConsoleObject.GetComponents<Component>()
-                    .Select(c => c.GetType().GetField("ConsoleVersion",
-                        System.Reflection.BindingFlags.Public |
-                        System.Reflection.BindingFlags.Static |
-                        System.Reflection.BindingFlags.FlattenHierarchy))
-                    .Where(f => f != null && f.IsLiteral && !f.IsInitOnly)
-                    .Select(f => f.GetValue(null))
-                    .FirstOrDefault() is string consoleVersion)
-                {
-                    if (ServerData.VersionToNumber(consoleVersion) < ServerData.VersionToNumber(Console.ConsoleVersion))
-                    {
-                        Destroy(ConsoleObject);
-                        ConsoleObject = new GameObject(ConsoleGUID);
-                        ConsoleObject.AddComponent<Console>();
-                    }
-                }
-            }
-
-            if (ServerData.ServerDataEnabled)
-                ConsoleObject.AddComponent<ServerData>();
         }
 
         public void LateUpdate()
@@ -186,25 +157,15 @@ namespace Deez.GorillaMedia.Classes
                 progressBar.sizeDelta.y
             );
 
-            PhotonNetwork.LocalPlayer.CustomProperties.TryGetValue("CurrentSong", out object CurrentSong);
-
-            if (CurrentSong == null || (CurrentSong is string @currentSong && @currentSong != MediaManager.Title))
+            Hashtable props = new()
             {
-                PhotonNetwork.LocalPlayer.SetCustomProperties(new ExitGames.Client.Photon.Hashtable
-                {
-                    { "CurrentSong", MediaManager.Title }
-                });
-            }
+                    {
+                            "Deez's GorillaMedia",
+                            $"Made By Deez - Version {PluginInfo.Version}"
+                    },
+            };
 
-            PhotonNetwork.LocalPlayer.CustomProperties.TryGetValue("SongArtist", out object SongArtist);
-
-            if (SongArtist == null || (SongArtist is string @songArtist && @songArtist != MediaManager.Artist))
-            {
-                PhotonNetwork.LocalPlayer.SetCustomProperties(new ExitGames.Client.Photon.Hashtable
-                {
-                    { "SongArtist", MediaManager.Artist }
-                });
-            }
+            PhotonNetwork.LocalPlayer.SetCustomProperties(props);
         }
 
         public static (Vector3 position, Quaternion rotation, Vector3 up, Vector3 forward, Vector3 right) TrueRightHand()

@@ -1,4 +1,4 @@
-﻿namespace Deez.GorillaMedia
+﻿namespace GorillaMedia
 {
     internal class PluginInfo
     {

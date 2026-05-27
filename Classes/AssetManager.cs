@@ -2,7 +2,7 @@
 using System.Reflection;
 using UnityEngine;
 
-namespace Deez.GorillaMedia.Classes
+namespace GorillaMedia.Classes
 {
     public class AssetManager
     {

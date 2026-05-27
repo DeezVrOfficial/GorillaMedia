@@ -1,8 +1,8 @@
 ﻿using BepInEx;
-using Deez.GorillaMedia.Classes;
+using GorillaMedia.Classes;
 using UnityEngine;
 
-namespace Deez.GorillaMedia
+namespace GorillaMedia
 {
     [BepInPlugin(PluginInfo.GUID, PluginInfo.Name, PluginInfo.Version)]
     public class Plugin : BaseUnityPlugin

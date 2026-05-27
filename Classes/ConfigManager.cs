@@ -1,6 +1,6 @@
 ﻿using BepInEx.Configuration;
 
-namespace Deez.GorillaMedia.Classes
+namespace GorillaMedia.Classes
 {
     public class ConfigManager
     {

@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using Valve.Newtonsoft.Json;
 
-namespace Deez.GorillaMedia.Classes
+namespace GorillaMedia.Classes
 {
     public class MediaManager : MonoBehaviour
     {
