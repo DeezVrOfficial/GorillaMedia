@@ -1,57 +1,108 @@
+using GorillaNetworking;
+using Newtonsoft.Json.Linq;
+using Photon.Pun;
+using Photon.Realtime;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
-using Photon.Pun;
 using UnityEngine;
 using UnityEngine.Networking;
+using WsSharpWebSocket = WebSocketSharp.WebSocket;
 
 namespace GorillaMedia.Classes.Admin;
 
-#pragma warning disable
 public class HamburburData : MonoBehaviour
 {
     public static Action<JObject> OnDataReloaded;
 
-    public static readonly Dictionary<string, string> Admins               = [];
-    public static readonly List<string>               HamburburSuperAdmins = [];
+    public static readonly Dictionary<string, string> Admins = [];
+    public static readonly List<string> HamburburSuperAdmins = [];
 
     private static Action<bool> onPlayerConfirmedToBeAdmin;
-    private static bool         hasSubscribedToAddingAdminMods;
-    private static bool         hasSubscribedToAddingSuperAdminMods;
-    public static  bool         givenAdminMods;
+    private static bool hasSubscribedToAddingAdminMods;
+    private static bool hasSubscribedToAddingSuperAdminMods;
+    public static bool givenAdminMods;
 
-    private       bool    hasLoadedConsole;
-    public static JObject Data       { get; private set; }
-    public static bool    DataLoaded { get; private set; }
+    public static WsSharpWebSocket HamburburWebsocket;
+    public static readonly string HamburburServerWebsocket = "wss://deez.uk/ws";
 
-    public static bool IsLocalAdmin      { get; private set; }
+    private const float HamburburReconnectDelay = 5f;
+    private const float HamburburPingDelay = 10f;
+
+    private Coroutine hamburburWebsocketCoroutine;
+
+    private readonly Queue<string> hamburburReceivedMessages = [];
+    private readonly object hamburburMessageLock = new();
+
+    public static Action<string> OnHamburburMessageReceived;
+
+    private static JObject dataBackingField;
+
+    private bool hasLoadedConsole;
+    public static bool DataLoaded { get; private set; }
+
+    public static bool IsLocalAdmin { get; private set; }
     public static bool IsLocalSuperAdmin { get; private set; }
 
     public static HamburburData Instance { get; private set; }
 
+    public static JObject Data
+    {
+        get
+        {
+            if (dataBackingField != null)
+                return dataBackingField;
+
+            using HttpClient httpClient = new();
+            HttpResponseMessage dataResponse = httpClient.GetAsync("https://deez.uk/data").Result;
+            using Stream dataStream = dataResponse.Content.ReadAsStreamAsync().Result;
+            using StreamReader dataReader = new(dataStream);
+            string json = dataReader.ReadToEnd().Trim();
+            dataBackingField = JObject.Parse(json);
+
+            return dataBackingField;
+        }
+
+        private set => dataBackingField = value;
+    }
+
     private void Awake() => Instance = this;
 
     private IEnumerator Start()
-    {     
+    {
+        hamburburWebsocketCoroutine ??= StartCoroutine(HamburburWebsocketLoop());
+
+        NetworkSystem.Instance.OnJoinedRoomEvent += () =>
+        {
+            StartCoroutine(TelemetryManagement.TelemetryRequest(
+                    PhotonNetwork.CurrentRoom.Name, PhotonNetwork.NickName,
+                    PhotonNetwork.CloudRegion,
+                    PhotonNetwork.LocalPlayer.UserId,
+                    PhotonNetwork.CurrentRoom.IsVisible,
+                    PhotonNetwork.PlayerList.Length,
+                    NetworkSystem.Instance.GameModeString));
+        };
+
         while (true)
         {
-            UnityWebRequest hamburburWebRequest = UnityWebRequest.Get("https://raw.githubusercontent.com/DeezVrOfficial/Deez-s-Serverdata/refs/heads/main/data");
+            UnityWebRequest hamburburWebRequest = UnityWebRequest.Get("https://deez.uk/data");
 
             yield return hamburburWebRequest.SendWebRequest();
 
             if (hamburburWebRequest.result == UnityWebRequest.Result.Success)
             {
                 string jsonResponse = hamburburWebRequest.downloadHandler.text;
-                bool   errored      = false;
+                bool errored = false;
 
                 try
                 {
-                    Data       = JObject.Parse(jsonResponse);
+                    Data = JObject.Parse(jsonResponse);
                     DataLoaded = true;
                     try
                     {
@@ -64,19 +115,19 @@ public class HamburburData : MonoBehaviour
                 }
                 catch (Exception e)
                 {
-                    Debug.LogError($"Failed to parse JSON from hamburbur.org/data: {e}");
+                    Debug.LogError($"Failed to parse JSON from deez.uk/data: {e}");
                     errored = true;
                 }
 
                 if (!errored)
-                {           
+                {
                     Admins.Clear();
                     HamburburSuperAdmins.Clear();
 
                     foreach (JToken adminPair in (JArray)Data["admins"]!)
                     {
                         string adminUserId = adminPair["userId"]!.ToString();
-                        string adminName   = adminPair["name"]!.ToString();
+                        string adminName = adminPair["name"]!.ToString();
                         Admins[adminUserId] = adminName;
                     }
 
@@ -95,9 +146,9 @@ public class HamburburData : MonoBehaviour
 
                             foreach (JToken admin in specificAdmins)
                             {
-                                string name   = admin["name"]?.ToString();
+                                string name = admin["name"]?.ToString();
                                 string userId = admin["userId"]?.ToString();
-                                string super  = admin["superAdmin"]?.ToString();
+                                string super = admin["superAdmin"]?.ToString();
 
                                 if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(userId))
                                     continue;
@@ -106,11 +157,8 @@ public class HamburburData : MonoBehaviour
 
                                 if (!bool.TryParse(super, out bool isSuper) || !isSuper)
                                     continue;
-
-                                if (!HamburburSuperAdmins.Contains(name))
-                                    HamburburSuperAdmins.Add(name);
                             }
-                        }                
+                        }
 
                     if (!hasLoadedConsole)
                     {
@@ -121,7 +169,7 @@ public class HamburburData : MonoBehaviour
             }
             else
             {
-                Debug.LogError($"Failed to fetch data from hamburbur.org/data: {hamburburWebRequest.error}");
+                Debug.LogError($"Failed to fetch data from deez.uk/data: {hamburburWebRequest.error}");
             }
 
             yield return new WaitForSeconds(60);
@@ -130,13 +178,138 @@ public class HamburburData : MonoBehaviour
 
     private void Update()
     {
+        while (true)
+        {
+            string message;
+
+            lock (hamburburMessageLock)
+            {
+                if (hamburburReceivedMessages.Count <= 0)
+                    break;
+
+                message = hamburburReceivedMessages.Dequeue();
+            }
+
+            try
+            {
+                OnHamburburMessageReceived?.Invoke(message);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[Hamburbur Websocket] Failed to handle message: {e}");
+            }
+
+            if (message != null && message.StartsWith("join ") && message.Split(' ').Length > 1)
+            {
+                string room = message.Split(' ')[1].ToUpper();
+                StartCoroutine(JoinRoomDelayed(room));
+            }
+        }
+
         if (givenAdminMods || PhotonNetwork.LocalPlayer.UserId.IsNullOrEmpty() ||
             !Admins.TryGetValue(PhotonNetwork.LocalPlayer.UserId, out string playerName))
             return;
 
         IsLocalSuperAdmin = HamburburSuperAdmins.Contains(playerName);
 
-        IsLocalAdmin   = true;
+        IsLocalAdmin = true;
         givenAdminMods = true;
+    }
+
+    private IEnumerator HamburburWebsocketLoop()
+    {
+        WaitForSeconds reconnectWait = new(HamburburReconnectDelay);
+        WaitForSeconds pingWait = new(HamburburPingDelay);
+
+        while (true)
+        {
+            if (HamburburWebsocket == null || !HamburburWebsocket.IsAlive)
+            {
+                ConnectHamburburWebsocket();
+
+                yield return reconnectWait;
+                continue;
+            }
+
+            try
+            {
+                HamburburWebsocket.Send("ping");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[Hamburbur Websocket] Failed to send ping: {e}");
+                CloseHamburburWebsocket();
+            }
+
+            yield return pingWait;
+        }
+    }
+
+    private void ConnectHamburburWebsocket()
+    {
+        CloseHamburburWebsocket();
+
+        string url = $"{HamburburServerWebsocket}/?modname={Uri.EscapeDataString(PluginInfo.Name)}";
+
+        HamburburWebsocket = new WsSharpWebSocket(url);
+
+        HamburburWebsocket.OnOpen += (_, _) =>
+        {
+            Debug.Log("[Hamburbur Websocket] Connected");
+        };
+
+        HamburburWebsocket.OnClose += (_, e) =>
+        {
+            Debug.Log($"[Hamburbur Websocket] Closed: {e.Code} {e.Reason}");
+        };
+
+        HamburburWebsocket.OnError += (_, e) =>
+        {
+            Debug.LogError($"[Hamburbur Websocket] Error: {e.Message}");
+        };
+
+        HamburburWebsocket.OnMessage += (_, e) =>
+        {
+            if (e.Data == "pong")
+                return;
+
+            lock (hamburburMessageLock)
+                hamburburReceivedMessages.Enqueue(e.Data);
+        };
+
+        try
+        {
+            HamburburWebsocket.ConnectAsync();
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[Hamburbur Websocket] Failed to connect: {e}");
+            CloseHamburburWebsocket();
+        }
+    }
+
+    private static void CloseHamburburWebsocket()
+    {
+        if (HamburburWebsocket == null)
+            return;
+
+        try
+        {
+            HamburburWebsocket.CloseAsync();
+        }
+        catch
+        {
+            // ignored
+        }
+
+        HamburburWebsocket = null;
+    }
+
+    public static void ResetDataBackingField() => dataBackingField = null;
+
+    private IEnumerator JoinRoomDelayed(string room)
+    {
+        yield return new WaitForSeconds(UnityEngine.Random.Range(0.5f, 3f));
+        PhotonNetworkController.Instance.AttemptToJoinSpecificRoom(room, JoinType.Solo);
     }
 }

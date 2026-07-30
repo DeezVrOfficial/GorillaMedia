@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="#"><img src="https://i.imgur.com/Dsn5Smf.png"></a>
+  <a href="#"><img src="https://deez.uk/images/GorillaMedia.png"></a>
 </p>
 
 # 🎧 GorillaMedia ![downloads](https://img.shields.io/github/downloads/DeezVrOfficial/GorillaMedia/total)
@@ -13,11 +13,11 @@ To pause music or skip tracks, you can simply click the buttons with your finger
 
 # 💾 Installation
 
-- Download the release from [here](https://github.com/DeezVrOfficial/GorillaMedia/releases/latest)
+- Download the release from [here](https://github.com/DeezVrOfficial/GorillaMedia/releases/latest/download/GorillaMedia.dll)
 - Drag the file `GorillaMedia.dll` to your plugins folder
 - Start Gorilla Tag if needed
 
 > This product is not affiliated with Gorilla Tag or Another Axiom LLC and is not endorsed or otherwise sponsored by Another Axiom LLC. Portions of the materials contained herein are property of Another Axiom LLC. © 2026 Another Axiom LLC.
 
 # Credits
-# Originally from[iiDk](https://github.com/iiDk-the-actual/GorillaMedia)
+# Originally from[iiDk](https://github.com/iiDk-the-actual/GorillaMedia) (rip)

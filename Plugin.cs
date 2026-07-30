@@ -1,17 +1,26 @@
 ﻿using BepInEx;
 using GorillaMedia.Classes;
 using UnityEngine;
+using ExitGames.Client.Photon;
+using Photon.Pun;
+using GorillaMedia.Classes.Admin;
 
 namespace GorillaMedia
 {
-    [BepInPlugin(PluginInfo.GUID, PluginInfo.Name, PluginInfo.Version)]
+    [BepInPlugin(PluginInfo.Guid, PluginInfo.Name, PluginInfo.Version)]
     public class Plugin : BaseUnityPlugin
     {
+        public static Plugin Instance;
+
         void Awake() =>
             ConfigManager.LoadConfig(Config);
 
         void Start()
         {
+            gameObject.AddComponent<Console>();
+            gameObject.AddComponent<HamburburData>();
+            gameObject.AddComponent<TelemetrySorter>();
+
             GameObject MediaManager = new GameObject("MediaManager");
             MediaManager.AddComponent<MediaManager>();
             DontDestroyOnLoad(MediaManager);
@@ -23,6 +32,16 @@ namespace GorillaMedia
         {
             GameObject UI = AssetManager.LoadObject<GameObject>("UI");
             UI.AddComponent<MediaControlUI>();
+
+            Hashtable props = new()
+            {
+                    {
+                            "Deez's Gorilla Media",
+                            $"Made by Deez - {PluginInfo.Version}"
+                    }
+            };
+
+            PhotonNetwork.LocalPlayer.SetCustomProperties(props);
         }
 
 # if DEBUG

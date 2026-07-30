@@ -1,5 +1,4 @@
-﻿using BepInEx;
-using HarmonyLib;
+﻿using HarmonyLib;
 using System.Reflection;
 
 namespace GorillaMedia
@@ -9,7 +8,7 @@ namespace GorillaMedia
         private static Harmony instance;
 
         public static bool IsPatched { get; private set; }
-        public const string InstanceId = PluginInfo.GUID;
+        public const string InstanceId = PluginInfo.Guid;
 
         internal static void ApplyHarmonyPatches()
         {

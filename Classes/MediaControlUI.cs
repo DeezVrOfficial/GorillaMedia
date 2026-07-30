@@ -1,11 +1,6 @@
-﻿using ExitGames.Client.Photon;
-using Photon.Pun;
-using System.Collections;
-using System.Linq;
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using Hashtable = ExitGames.Client.Photon.Hashtable;
 
 namespace GorillaMedia.Classes
 {
@@ -156,16 +151,6 @@ namespace GorillaMedia.Classes
                 Mathf.Lerp(0f, maxSliderProgress, (clampedElapsed - MediaManager.StartTime) / (MediaManager.EndTime - MediaManager.StartTime)),
                 progressBar.sizeDelta.y
             );
-
-            Hashtable props = new()
-            {
-                    {
-                            "Deez's GorillaMedia",
-                            $"Made By Deez - Version {PluginInfo.Version}"
-                    },
-            };
-
-            PhotonNetwork.LocalPlayer.SetCustomProperties(props);
         }
 
         public static (Vector3 position, Quaternion rotation, Vector3 up, Vector3 forward, Vector3 right) TrueRightHand()
