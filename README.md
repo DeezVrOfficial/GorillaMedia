@@ -20,4 +20,4 @@ To pause music or skip tracks, you can simply click the buttons with your finger
 > This product is not affiliated with Gorilla Tag or Another Axiom LLC and is not endorsed or otherwise sponsored by Another Axiom LLC. Portions of the materials contained herein are property of Another Axiom LLC. © 2026 Another Axiom LLC.
 
 # Credits
-# Originally from[iiDk](https://github.com/iiDk-the-actual/GorillaMedia) (rip)
+# Originally from [iiDk](https://github.com/iiDk-the-actual/GorillaMedia) (rip)
