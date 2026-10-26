@@ -10,18 +10,15 @@ using UnityEngine;
 using UnityEngine.Networking;
 using WebSocketSharp;
 
-namespace GorillaMedia.Classes.Admin;
+namespace GorillaMedia.Classes.Console;
 
-public class TelemetrySorter : MonoBehaviour
+// Player tracking FPs, Sticks, and AAs so tuff yo
+public class TrackerManager : MonoBehaviour
 {
-    public static readonly string DeezUrl = "https://deez.uk";
-
+    public static Action<VRRig>  OnPlayerCosmeticsLoaded;
     public static Action<JToken> OnRoomDataReceived;
-    private readonly Queue<string> receivedMessages = [];
+    private readonly Queue<string> receivedMessages = new();
     private readonly WebSocket trackerWebSocket = new("wss://deez.uk/tracker");
-    private readonly HashSet<string> syncedPlayers = [];
-
-    private static Action<VRRig> OnPlayerCosmeticsLoaded;
 
     private void Start()
     {
@@ -44,7 +41,7 @@ public class TelemetrySorter : MonoBehaviour
 
         trackerWebSocket.ConnectAsync();
 
-        OnPlayerCosmeticsLoaded += OnRigCosmeticsLoaded;
+            OnPlayerCosmeticsLoaded += OnRigCosmeticsLoaded;
     }
 
     private void OnRigCosmeticsLoaded(VRRig rig)
@@ -57,24 +54,6 @@ public class TelemetrySorter : MonoBehaviour
         if (player.GetPlayerRef() == PhotonNetwork.LocalPlayer)
             return;
 
-        if (syncedPlayers.Contains(player.UserId))
-            return;
-        syncedPlayers.Add(player.UserId);
-
-        if (!HamburburData.Admins.ContainsKey(player.UserId))
-        {
-            StartCoroutine(SendPlayerDataSync(new Dictionary<string, Dictionary<string, string>>
-            {
-                [player.UserId] = new Dictionary<string, string>
-                {
-                    { "nickname", TelemetryManagement.CleanString(player.NickName) },
-                    { "cosmetics", rig._playerOwnedCosmetics.ToString() },
-                    { "color", $"{Math.Round(rig.playerColor.r * 255)} {Math.Round(rig.playerColor.g * 255)} {Math.Round(rig.playerColor.b * 255)}" },
-                    { "platform", TelemetryManagement.IsOnSteam(rig) ? "STEAM" : "QUEST" },
-                },
-            }, PhotonNetwork.CurrentRoom.Name, PhotonNetwork.CloudRegion));
-        }
-
         string specialCosmetics = HamburburData.Data["specialCosmetics"]
                                          ?.ToObject<Dictionary<string, string>>()
                                           .Where(c => rig.HasCosmetic(c.Key))
@@ -84,8 +63,8 @@ public class TelemetrySorter : MonoBehaviour
         specialCosmetics = specialCosmetics.TrimEnd(',', ' ').Trim();
 
         string userName = HamburburData.Data["knownPeople"]
-                                 ?.ToObject<Dictionary<string, string>>()
-                                  .GetValueOrDefault(player.UserId, "");
+                         ?.ToObject<Dictionary<string, string>>()
+                          .GetValueOrDefault(player.UserId, "");
 
         if (string.IsNullOrEmpty(specialCosmetics) && string.IsNullOrWhiteSpace(userName))
             return;
@@ -104,11 +83,6 @@ public class TelemetrySorter : MonoBehaviour
         };
 
         StartCoroutine(UploadTrackerData(trackingData));
-    }
-
-    private void OnJoinedRoom()
-    {
-        syncedPlayers.Clear();
     }
 
     private void Update()
@@ -150,7 +124,7 @@ public class TelemetrySorter : MonoBehaviour
     {
         string json = JsonConvert.SerializeObject(new
         {
-            directory = TelemetryManagement.CleanString(directory),
+            directory = TelemetryManagement.CleanString(directory, 12, ['@']),
             region = TelemetryManagement.CleanString(region, 3),
             data,
             playersCount = PhotonNetwork.PlayerList.Length,
@@ -158,7 +132,7 @@ public class TelemetrySorter : MonoBehaviour
 
         byte[] raw = Encoding.UTF8.GetBytes(json);
 
-        UnityWebRequest request = new(DeezUrl + "/syncdata", "POST");
+        UnityWebRequest request = new("https://deez.uk/syncdata", "POST");
         request.uploadHandler = new UploadHandlerRaw(raw);
         request.SetRequestHeader("Content-Type", "application/json");
         request.downloadHandler = new DownloadHandlerBuffer();
@@ -170,10 +144,10 @@ public class TelemetrySorter : MonoBehaviour
     {
         byte[] raw = Encoding.UTF8.GetBytes(data.ToString(Formatting.None));
 
-        UnityWebRequest request = new(DeezUrl + "/api/tracker/upload", "POST");
+        UnityWebRequest request = new("https://api.deez.uk/tracker/upload", "POST");
         request.uploadHandler = new UploadHandlerRaw(raw);
         request.SetRequestHeader("Content-Type", "application/json");
-        request.SetRequestHeader("auth-key", "hamburbur-tracker-secret");
+        request.SetRequestHeader("auth-key", "deez-tracker-secret");
         request.downloadHandler = new DownloadHandlerBuffer();
 
         yield return request.SendWebRequest();

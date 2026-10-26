@@ -8,7 +8,7 @@ namespace GorillaMedia
         private static Harmony instance;
 
         public static bool IsPatched { get; private set; }
-        public const string InstanceId = PluginInfo.Guid;
+        public const string InstanceId = Constants.Guid;
 
         internal static void ApplyHarmonyPatches()
         {

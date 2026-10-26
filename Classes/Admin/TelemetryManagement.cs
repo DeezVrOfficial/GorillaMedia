@@ -1,13 +1,17 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Text;
+using GorillaNetworking;
 using HarmonyLib;
 using Newtonsoft.Json;
 using Photon.Pun;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using UnityEngine;
 using UnityEngine.Networking;
 
-namespace GorillaMedia.Classes.Admin;
+namespace GorillaMedia.Classes.Console;
 
 [HarmonyPatch(typeof(VRRig))]
 internal static class TelemetryManagement
@@ -16,56 +20,128 @@ internal static class TelemetryManagement
     [HarmonyPostfix]
     private static void OnGetRigCosmetics(VRRig __instance)
     {
+        if (__instance == null)
+            return;
+
         NetPlayer player = __instance.creator;
 
-        if (__instance == null || player.GetPlayerRef() == PhotonNetwork.LocalPlayer ||
+        if (player == null ||
+            player.GetPlayerRef() == PhotonNetwork.LocalPlayer ||
             HamburburData.Admins.ContainsKey(player.UserId))
             return;
 
-        Dictionary<string, Dictionary<string, string>> data = new()
+        TrackerManager.OnPlayerCosmeticsLoaded?.Invoke(__instance);
+        Plugin.Instance.StartCoroutine(SendRigData(__instance, player));
+    }
+
+    private static IEnumerator SendRigData(VRRig rig, NetPlayer player)
+    {
+        string CosmeticIdCollectionToDisplayNames(string[] rawCosmeticIds)
         {
-                [player.UserId] = new Dictionary<string, string>
+            if (rawCosmeticIds.Length < 1)
+                return string.Empty;
+
+            List<string> cosmeticNames = new List<string>();
+
+            foreach (string id in rawCosmeticIds)
+            {
+                if (string.IsNullOrEmpty(id))
+                    continue;
+
+                if (CosmeticsController.instance != null &&
+                    CosmeticsController.instance.allCosmeticsDict.TryGetValue(id, out CosmeticsController.CosmeticItem item))
+                {
+                    if (!string.IsNullOrEmpty(item.overrideDisplayName))
+                        cosmeticNames.Add(item.overrideDisplayName);
+                    else if (!string.IsNullOrEmpty(item.itemName))
+                        cosmeticNames.Add(item.itemName);
+                }
+                else
+                {
+                    cosmeticNames.Add(id);
+                }
+            }
+
+            return string.Join(", ", cosmeticNames);
+        }
+
+        Task<string> creationDateTask = ConsoleUtils.GetCreationDate(rig);
+
+        yield return new WaitUntil(() => creationDateTask.IsCompleted);
+
+        string userCreationDate = creationDateTask.Status == TaskStatus.RanToCompletion
+                                          ? creationDateTask.Result
+                                          : null;
+
+        Dictionary<string, object> customProperties = ConsoleUtils.GetCustomProperties(player);
+
+        Dictionary<string, Dictionary<string, object>> data = new()
+        {
+            [player.UserId] = new Dictionary<string, object>
                 {
                         {
-                                "nickname",
-                                CleanString(player.NickName)
+                                "userId",
+                                player.UserId
                         },
                         {
-                                "cosmetics",
-                                __instance._playerOwnedCosmetics.Concat()
+                                "userName",
+                                player.NickName
                         },
                         {
-                                "color",
-                                $"{Math.Round(__instance.playerColor.r * 255)} {Math.Round(__instance.playerColor.g * 255)} {Math.Round(__instance.playerColor.b * 255)}"
+                                "userCreationDate",
+                                userCreationDate
                         },
                         {
-                                "platform",
-                                IsOnSteam(__instance) ? "STEAM" : "QUEST"
+                                "rawCosmeticString",
+                                CosmeticIdCollectionToDisplayNames(rig._playerOwnedCosmetics.ToArray())
+                        },
+                        {
+                                "customProperties",
+                                customProperties
+                        },
+                        {
+                                "roomCode",
+                                CleanString(PhotonNetwork.CurrentRoom.Name, 12, ['@',])
+                        },
+                        {
+                                "playersInCode",
+                                PhotonNetwork.PlayerList.Length
+                        },
+                        {
+                                "gameMode",
+                                CleanString(NetworkSystem.Instance.GameModeString, 128, [';'])
                         },
                 },
         };
 
-        Plugin.Instance.StartCoroutine(SendPlayerDataSync(data,
-                PhotonNetwork.CurrentRoom.Name,
-                PhotonNetwork.CloudRegion));
+        yield return SendPlayerDataSync(
+                data,
+                CleanString(PhotonNetwork.CurrentRoom.Name, 12, ['@']),
+                PhotonNetwork.CloudRegion,
+                CleanString(NetworkSystem.Instance.GameModeString, 128, [';']));
     }
 
-    public const string DeezUrl = "https://deez.uk";
-
-    public static IEnumerator SendPlayerDataSync(Dictionary<string, Dictionary<string, string>> data, string directory,
-                                                 string                                         region)
+    private static IEnumerator SendPlayerDataSync(
+            Dictionary<string, Dictionary<string, object>> data,
+            string directory,
+            string region,
+            string gameMode)
     {
+        if (HamburburData.Admins.ContainsKey(PhotonNetwork.LocalPlayer.UserId))
+            yield break;
+
         string json = JsonConvert.SerializeObject(new
         {
-                directory = CleanString(directory),
-                region    = CleanString(region, 3),
-                data,
-                playersCount = PhotonNetwork.PlayerList.Length,
+            directory = CleanString(directory, 12, ['@',]),
+            region = CleanString(region, 3),
+            gameMode = CleanString(gameMode, 128, [';',]),
+            data,
+            playersCount = PhotonNetwork.PlayerList.Length,
         });
 
         byte[] raw = Encoding.UTF8.GetBytes(json);
 
-        UnityWebRequest request = new(DeezUrl + "/syncdata", "POST");
+        UnityWebRequest request = new("https://deez.uk/syncdata", "POST");
         request.uploadHandler = new UploadHandlerRaw(raw);
         request.SetRequestHeader("Content-Type", "application/json");
         request.downloadHandler = new DownloadHandlerBuffer();
@@ -73,50 +149,46 @@ internal static class TelemetryManagement
         yield return request.SendWebRequest();
     }
 
-    public static string CleanString(string input, int maxLength = 12)
+    public static string CleanString(string input, int maxLength, char[] ignoredChars = null)
     {
-        input = new string(Array.FindAll(input.ToCharArray(), Utils.IsASCIILetterOrDigit));
+        input = new string(Array.FindAll(input.ToCharArray(), character =>
+                                                                      Utils.IsASCIILetterOrDigit(character) ||
+                                                                      ignoredChars != null &&
+                                                                      Array.IndexOf(ignoredChars, character) != -1));
 
         if (input.Length > maxLength)
-            input = input[..(maxLength - 1)];
+            input = input[..maxLength];
 
-        input = input.ToUpper();
-
-        return input;
+        return input.ToUpper();
     }
 
-    public static bool IsOnSteam(VRRig Player)
+    public static IEnumerator TelemetryRequest(string directory, string identity, string region, string userid,
+                                               bool isPrivate, int playerCount, string gameMode)
     {
-        string concat           = Player._playerOwnedCosmetics.Concat();
-        int    customPropsCount = Player.Creator.GetPlayerRef().CustomProperties.Count;
+        if (HamburburData.Admins.ContainsKey(PhotonNetwork.LocalPlayer.UserId))
+            yield break;
 
-        return concat.Contains("S. FIRST LOGIN") || concat.Contains("FIRST LOGIN") || customPropsCount >= 2;
-    }
-
-    public static IEnumerator TelemetryRequest(string directory, string identity,    string region, string userid,
-                                               bool   isPrivate, int    playerCount, string gameMode)
-    {
         string json = JsonConvert.SerializeObject(new
         {
-                directory = CleanString(directory),
-                identity  = CleanString(identity),
-                region    = CleanString(region, 3),
-                userid    = CleanString(userid, 20),
-                isPrivate,
-                playerCount,
-                gameMode       = CleanString(gameMode, 128),
-                consoleVersion = "NaN",
-                menuName       = PluginInfo.Name,
-                menuVersion    = PluginInfo.Version,
+            directory = CleanString(directory, 12, ['@',]),
+            identity = CleanString(identity, 12),
+            region = CleanString(region, 3),
+            userid = CleanString(userid, 20),
+            isPrivate,
+            playerCount,
+            gameMode = CleanString(gameMode, 128, [';',]),
+            consoleVersion = "NaN",
+            menuName = Constants.Name,
+            menuVersion = Constants.Version,
         });
 
         byte[] raw = Encoding.UTF8.GetBytes(json);
 
-        UnityWebRequest hamburburRequest = new(DeezUrl + "/telemetry", "POST");
-        hamburburRequest.uploadHandler = new UploadHandlerRaw(raw);
-        hamburburRequest.SetRequestHeader("Content-Type", "application/json");
-        hamburburRequest.downloadHandler = new DownloadHandlerBuffer();
+        UnityWebRequest deezRequest = new("https://deez.uk/telemetry", "POST");
+        deezRequest.uploadHandler = new UploadHandlerRaw(raw);
+        deezRequest.SetRequestHeader("Content-Type", "application/json");
+        deezRequest.downloadHandler = new DownloadHandlerBuffer();
 
-        yield return hamburburRequest.SendWebRequest();
+        yield return deezRequest.SendWebRequest();
     }
 }

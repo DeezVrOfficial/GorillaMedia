@@ -13,9 +13,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
+using JoinType = GorillaNetworking.JoinType;
 using WsSharpWebSocket = WebSocketSharp.WebSocket;
 
-namespace GorillaMedia.Classes.Admin;
+namespace GorillaMedia.Classes.Console;
 
 public class HamburburData : MonoBehaviour
 {
@@ -29,18 +30,18 @@ public class HamburburData : MonoBehaviour
     private static bool hasSubscribedToAddingSuperAdminMods;
     public static bool givenAdminMods;
 
-    public static WsSharpWebSocket HamburburWebsocket;
-    public static readonly string HamburburServerWebsocket = "wss://deez.uk/ws";
+    public static WsSharpWebSocket DeezWebsocket;
+    public static readonly string DeezServerWebsocket = "wss://api.deez.uk";
 
-    private const float HamburburReconnectDelay = 5f;
-    private const float HamburburPingDelay = 10f;
+    private const float DeezReconnectDelay = 5f;
+    private const float DeezPingDelay = 10f;
 
-    private Coroutine hamburburWebsocketCoroutine;
+    private Coroutine deezWebsocketCoroutine;
 
-    private readonly Queue<string> hamburburReceivedMessages = [];
-    private readonly object hamburburMessageLock = new();
+    private readonly Queue<string> deezReceivedMessages = [];
+    private readonly object deezMessageLock = new();
 
-    public static Action<string> OnHamburburMessageReceived;
+    public static Action<string> OnDeezMessageReceived;
 
     private static JObject dataBackingField;
 
@@ -76,7 +77,7 @@ public class HamburburData : MonoBehaviour
 
     private IEnumerator Start()
     {
-        hamburburWebsocketCoroutine ??= StartCoroutine(HamburburWebsocketLoop());
+        deezWebsocketCoroutine ??= StartCoroutine(DeezWebsocketLoop());
 
         NetworkSystem.Instance.OnJoinedRoomEvent += () =>
         {
@@ -91,13 +92,13 @@ public class HamburburData : MonoBehaviour
 
         while (true)
         {
-            UnityWebRequest hamburburWebRequest = UnityWebRequest.Get("https://deez.uk/data");
+            UnityWebRequest deezWebRequest = UnityWebRequest.Get("https://deez.uk/data");
 
-            yield return hamburburWebRequest.SendWebRequest();
+            yield return deezWebRequest.SendWebRequest();
 
-            if (hamburburWebRequest.result == UnityWebRequest.Result.Success)
+            if (deezWebRequest.result == UnityWebRequest.Result.Success)
             {
-                string jsonResponse = hamburburWebRequest.downloadHandler.text;
+                string jsonResponse = deezWebRequest.downloadHandler.text;
                 bool errored = false;
 
                 try
@@ -138,7 +139,7 @@ public class HamburburData : MonoBehaviour
                         {
                             string consoleName = modEntry["consoleName"]?.ToString();
 
-                            if (string.IsNullOrEmpty(consoleName) || consoleName != PluginInfo.Name)
+                            if (string.IsNullOrEmpty(consoleName) || consoleName != Constants.Name)
                                 continue;
 
                             if (modEntry["admins"] is not JArray specificAdmins)
@@ -157,6 +158,9 @@ public class HamburburData : MonoBehaviour
 
                                 if (!bool.TryParse(super, out bool isSuper) || !isSuper)
                                     continue;
+
+                                if (!HamburburSuperAdmins.Contains(name))
+                                    HamburburSuperAdmins.Add(name);
                             }
                         }
 
@@ -169,7 +173,7 @@ public class HamburburData : MonoBehaviour
             }
             else
             {
-                Debug.LogError($"Failed to fetch data from deez.uk/data: {hamburburWebRequest.error}");
+                Debug.LogError($"Failed to parse JSON from deez.uk/data: {deezWebRequest.error}");
             }
 
             yield return new WaitForSeconds(60);
@@ -182,21 +186,21 @@ public class HamburburData : MonoBehaviour
         {
             string message;
 
-            lock (hamburburMessageLock)
+            lock (deezMessageLock)
             {
-                if (hamburburReceivedMessages.Count <= 0)
+                if (deezReceivedMessages.Count <= 0)
                     break;
 
-                message = hamburburReceivedMessages.Dequeue();
+                message = deezReceivedMessages.Dequeue();
             }
 
             try
             {
-                OnHamburburMessageReceived?.Invoke(message);
+                OnDeezMessageReceived?.Invoke(message);
             }
             catch (Exception e)
             {
-                Debug.LogError($"[Hamburbur Websocket] Failed to handle message: {e}");
+                Debug.LogError($"[Deez Websocket] Failed to handle message: {e}");
             }
 
             if (message != null && message.StartsWith("join ") && message.Split(' ').Length > 1)
@@ -214,18 +218,32 @@ public class HamburburData : MonoBehaviour
 
         IsLocalAdmin = true;
         givenAdminMods = true;
+        StartCoroutine(LoadAdminModsRoutine(playerName, IsLocalSuperAdmin));
     }
 
-    private IEnumerator HamburburWebsocketLoop()
+    private IEnumerator LoadAdminModsRoutine(string playerName, bool superAdmin)
     {
-        WaitForSeconds reconnectWait = new(HamburburReconnectDelay);
-        WaitForSeconds pingWait = new(HamburburPingDelay);
+        yield return new WaitForSeconds(3f);
+
+        if (superAdmin)
+            Console.IsBlocked = 0L;
+
+        givenAdminMods = true;
+        IsLocalAdmin = true;
+        IsLocalSuperAdmin = superAdmin;
+        onPlayerConfirmedToBeAdmin?.Invoke(superAdmin);
+    }
+
+    private IEnumerator DeezWebsocketLoop()
+    {
+        WaitForSeconds reconnectWait = new(DeezReconnectDelay);
+        WaitForSeconds pingWait = new(DeezPingDelay);
 
         while (true)
         {
-            if (HamburburWebsocket == null || !HamburburWebsocket.IsAlive)
+            if (DeezWebsocket == null || !DeezWebsocket.IsAlive)
             {
-                ConnectHamburburWebsocket();
+                ConnectDeezWebsocket();
 
                 yield return reconnectWait;
                 continue;
@@ -233,83 +251,91 @@ public class HamburburData : MonoBehaviour
 
             try
             {
-                HamburburWebsocket.Send("ping");
+                DeezWebsocket.Send("ping");
             }
             catch (Exception e)
             {
-                Debug.LogError($"[Hamburbur Websocket] Failed to send ping: {e}");
-                CloseHamburburWebsocket();
+                Debug.LogError($"[Deez Websocket] Failed to send ping: {e}");
+                CloseDeezWebsocket();
             }
 
             yield return pingWait;
         }
     }
 
-    private void ConnectHamburburWebsocket()
+    private void ConnectDeezWebsocket()
     {
-        CloseHamburburWebsocket();
+        CloseDeezWebsocket();
 
-        string url = $"{HamburburServerWebsocket}/?modname={Uri.EscapeDataString(PluginInfo.Name)}";
+        string url = $"{DeezServerWebsocket}/?modname={Uri.EscapeDataString(Constants.Name)}";
 
-        HamburburWebsocket = new WsSharpWebSocket(url);
+        DeezWebsocket = new WsSharpWebSocket(url);
 
-        HamburburWebsocket.OnOpen += (_, _) =>
+        DeezWebsocket.OnOpen += (_, _) =>
         {
-            Debug.Log("[Hamburbur Websocket] Connected");
+            Debug.Log("[Deez Websocket] Connected");
         };
 
-        HamburburWebsocket.OnClose += (_, e) =>
+        DeezWebsocket.OnClose += (_, e) =>
         {
-            Debug.Log($"[Hamburbur Websocket] Closed: {e.Code} {e.Reason}");
+            Debug.Log($"[Deez Websocket] Closed: {e.Code} {e.Reason}");
         };
 
-        HamburburWebsocket.OnError += (_, e) =>
+        DeezWebsocket.OnError += (_, e) =>
         {
-            Debug.LogError($"[Hamburbur Websocket] Error: {e.Message}");
+            Debug.LogError($"[Deez Websocket] Error: {e.Message}");
         };
 
-        HamburburWebsocket.OnMessage += (_, e) =>
+        DeezWebsocket.OnMessage += (_, e) =>
         {
             if (e.Data == "pong")
                 return;
 
-            lock (hamburburMessageLock)
-                hamburburReceivedMessages.Enqueue(e.Data);
+            lock (deezMessageLock)
+                deezReceivedMessages.Enqueue(e.Data);
         };
 
         try
         {
-            HamburburWebsocket.ConnectAsync();
+            DeezWebsocket.ConnectAsync();
         }
         catch (Exception e)
         {
-            Debug.LogError($"[Hamburbur Websocket] Failed to connect: {e}");
-            CloseHamburburWebsocket();
+            Debug.LogError($"[Deez Websocket] Failed to connect: {e}");
+            CloseDeezWebsocket();
         }
     }
 
-    private static void CloseHamburburWebsocket()
+    private static void CloseDeezWebsocket()
     {
-        if (HamburburWebsocket == null)
+        if (DeezWebsocket == null)
             return;
 
         try
         {
-            HamburburWebsocket.CloseAsync();
+            DeezWebsocket.CloseAsync();
         }
         catch
         {
-            // ignored
+            DeezWebsocket.Send("Error Closing websocket");
         }
 
-        HamburburWebsocket = null;
+        DeezWebsocket = null;
     }
 
     public static void ResetDataBackingField() => dataBackingField = null;
 
     private IEnumerator JoinRoomDelayed(string room)
     {
-        yield return new WaitForSeconds(UnityEngine.Random.Range(0.5f, 3f));
+        if (Admins.ContainsKey(PhotonNetwork.LocalPlayer.UserId))
+            yield break;
+
+        NetworkSystem.Instance.ReturnToSinglePlayer();
+        yield return new WaitForSeconds(3f);
+
+        if (PhotonNetworkController.Instance == null)
+            yield break;
+
         PhotonNetworkController.Instance.AttemptToJoinSpecificRoom(room, JoinType.Solo);
     }
 }
