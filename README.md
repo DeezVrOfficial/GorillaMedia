@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="#"><img src="https://deez.uk/images/GorillaMedia.png"></a>
+  <a href="#"><img src="https://files.deez.uk/GorillaMedia.png"></a>
 </p>
 
 # 🎧 GorillaMedia ![downloads](https://img.shields.io/github/downloads/DeezVrOfficial/GorillaMedia/total)
